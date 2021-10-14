@@ -1,0 +1,360 @@
+---
+title: "redkite"
+author: "Marcel"
+date: "9/28/2021"
+output: html_document
+---
+
+
+
+## Load Package
+```{r}
+library(data.table)
+library(dplyr)
+library(stringr)
+library(sf)
+library(raster)
+library(ggplot2)
+library(mapview)
+pal = mapviewPalette("mapviewTopoColors")
+library(move)
+library(ctmm)
+library(scales)
+path<- "E:/redkite/marcel/"
+```
+
+
+#  1. Movebank Data - GPS
+
+## 1.2. Filter GPS by timestamp and area
+
+* Filter Shapefile (downloaded from movebank) by WKA-radius, time and individual:
+
+```{r}
+redkite_shp<- st_read(paste0(path, "data_download_movebank/gis/points.shp"))
+WKA_radius<- st_read(paste0(path, "data_QGIS/WKA_radius/WKA_geplant_Radius.shp"))
+
+redkite_shp<-st_transform(redkite_shp, crs = 32632) # EPSG:32632 = UTM zone 32N
+WKA_radius<- st_transform(WKA_radius, crs = 32632)
+
+redkite_shp$timestamp<- as.POSIXct(redkite_shp$timestamp)
+redkite_shp$ind_ident<- as.character(redkite_shp$ind_ident)
+
+redkite_filter <- st_intersection(redkite_shp, WKA_radius)%>% 
+  filter(timestamp > "2019-03-23 07:40:00") %>% 
+  filter(timestamp < "2019-06-20 18:20:00") %>% 
+  filter(grepl("Nele|Hannibal|Selma|Laia|Agathe|Friedolin|Quincy|Rapida|Karl|Jan-Ole",ind_ident)) %>% 
+  filter(!grepl("_Rapunzel|_Rausch|_Ron",ind_ident)) 
+
+levels(as.factor(redkite_filter$ind_ident))
+range(redkite_filter$timestamp)
+
+mapview(redkite_filter) + mapview(WKA_radius)
+
+st_write(redkite_filter, paste0(path, "/data_download_movebank/gis/", "redkite_filtered_r_20190323_20190620.shp"))
+st_write(redkite_filter, paste0(path, "/data_download_movebank/", "redkite_filtered_r_20190323_20190620.csv"))
+```
+
+* Working with CSV (If shapefile not filtered beforehand):
+* If step above was done, this can be skipped!
+
+```{r}
+redkite<- fread("data_download_movebank/redkite_gps_clipped.csv")
+head(redkite)
+range(redkite$timestamp)
+filtered<- redkite %>% 
+  #filter(grepl("Nele|Hannibal|Selma|Laia|Agathe|Friedolin|Quincy|Rapida|Karl|Jan-Ole",individual)) %>% 
+  filter(timestamp > "2019-03-23 07:40:00") %>% 
+  filter(timestamp < "2019-06-20 18:20:00")
+range(filtered$timestamp)
+```
+
+## 1.3. Filter GPS data by acceleration
+
+* ... still missing
+
+## 1.4 Visualization of GPS Data - GRID 
+
+* pre-filtered in Script "movebank_data.R" / Step 1.2.
+* Filtered by timestamp >"2019-03-23 07:40:00" < "2019-06-20 18:20:00"
+* clipped with WKA-radius
+
+#### 1.4.1. Load data
+
+```{r}
+redkite_shp<- st_read(paste0(path,"data_download_movebank/gis/redkite_filtered_r_20190323_20190620.shp"))
+
+## Alternative: load CSV:
+#redkite<- fread(paste0(path, "data_download_movebank/redkite_filtered_r_20190323_20190620.csv"))
+#redkite_shp<-  st_as_sf(redkite, coords = c("utm_east", "utm_north"), crs ="+proj=utm +zone=32 +datum=WGS84 +units=m")
+#redkite_shp<-  st_as_sf(redkite, coords = c("utm_east", "utm_north"), crs =4326) #alternative: in case of projection issues
+#redkite_shp<- st_transform(obs_shp, crs = 32632)
+
+crs(redkite_shp) # EPSG:32632 = UTM zone 32N
+redkite_shp$X<- st_coordinates(redkite_shp)[,1]
+redkite_shp$Y<- st_coordinates(redkite_shp)[,2]
+
+WKA_radius<- st_read(paste0(path,"data_QGIS/WKA_radius/WKA_radius_32N.shp"))
+
+#mapview(WKA_radius) + mapview(redkite_shp)
+```
+
+
+#### 1.4.2. create & plot grid
+
+```{r}
+grid<- WKA_radius %>% 
+  st_make_grid(., cellsize = 250, square = T) %>% 
+  st_intersection(., WKA_radius)
+
+ggplot() +
+  geom_sf(data = WKA_radius, fill="transparent")+
+  geom_sf(data = grid, fill="transparent")+
+  geom_point(data = redkite_shp, aes(x = X, y = Y), col="orange")
+```
+
+#### 1.4.3. Heatmap
+```{r}
+pointcount<- grid %>% 
+  st_intersects(., redkite_shp) %>% 
+  lengths()
+
+pointcount_prop<- (pointcount / sum(pointcount)) * 100
+
+grid_count <- st_sf(n = pointcount_prop, geometry = st_cast(grid, "MULTIPOLYGON"))
+
+#mapview(WKA_radius) + mapview(grid_count, zcol = "n")
+```
+
+
+```{r}
+ggplot() +
+  geom_sf(data = WKA_radius, fill="transparent")+
+  geom_sf(data = grid_count, aes(fill=n))+
+  scale_fill_gradient(low = "white", high = "red")
+```
+
+#### 1.4.4. subset for one WKA:
+```{r}
+wka_9<- WKA_radius %>% 
+  filter(WKA_radius$number==9)
+
+grid_9<- wka_9 %>% 
+  st_make_grid(., cellsize = 250, square = T) %>% 
+  st_intersection(., wka_9)
+
+grid_9_gps_count <- grid_9 %>% 
+  st_intersects(., redkite_shp) %>% 
+  lengths(.) 
+grid_9_gps_prop<- (grid_9_gps_count / sum(grid_9_gps_count)) * 100
+grid_9_gps <-  st_sf(n = grid_9_gps_prop, geometry = st_cast(grid_9, "MULTIPOLYGON"))
+
+grid_9_gps$prop_round<- round(grid_9_gps_prop, digits = 2)
+
+mapview(wka_9) + mapview(grid_9_gps) #+ mapview(redkite_shp)
+```
+
+
+```{r}
+ggplot() +
+  geom_sf(data = grid_9_gps, aes(fill=log(n)))+
+  geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
+  scale_fill_gradient2(low = "white", mid = "yellow", high = "red")+ # find better gradient; Log-Scale!!!!
+  geom_sf_text(data = grid_9_gps,aes(label = prop_round),size=1.54)+
+  ggtitle("WKA 9 - GPS Friedolin")
+ggsave("friedolin_gps.png")
+```
+
+
+# 2. Observer Data
+
+
+## 2.1. Preperation-Steps in QGIS
+* load observer data (shp in QGIS) - Create Vertices from "Schlangenlinien" 
+* clip with WKA-radius
+
+## 2.2. Data preperation - observer-table
+* Filter by individuals
+* Create Session-Number
+* Filter for individuals with transmitter only
+
+* Filter step only needed once! --> Skip and go to 2.3.
+
+```{r}
+
+obs<- read.csv(paste0(path, "data_observer/observer_data_vertices_clipped.csv"))
+
+# assign individual names (in observer data only abbreviations)
+obs$individual<- NA
+obs<- obs%>%
+mutate(individual = replace(individual, Individuum=="a"|Individuum=="A"|Individuum=="Agathe", "Agathe"),
+       individual = replace(individual, Individuum=="f", "Friedolin"),
+       individual = replace(individual, Individuum=="h", "Hannibal"),
+       individual = replace(individual, Individuum=="j", "Jan-Ole"),
+       individual = replace(individual, Individuum=="k", "Killer-Karl"),
+       individual = replace(individual, Individuum=="l"|Individuum=="L", "Laja"),
+       individual = replace(individual, Individuum=="n", "Nele"),
+       individual = replace(individual, Individuum=="q", "Quincy"),
+       individual = replace(individual, Individuum=="r", "Rapida"),
+       individual = replace(individual, Individuum=="s"|Individuum=="S", "Selma"),
+       long=X,
+       lat=Y
+       )
+table(obs$Individuum)
+table(obs$individual) # passt
+
+#### assign "number of observation":
+zeitfenster<- read.csv(paste0(path, "Untersuchungszeitfenster_for_R.csv"), sep=";")
+
+zeitfenster<- zeitfenster %>% 
+mutate(individual=str_split_fixed(individual.local.identifier, " ", 2)[,1],
+       Start=as.POSIXct(Start,format="%d.%m.%Y %H:%M"),
+       date=as.Date(Start, "%m/%d/%y"))
+
+obs$date<- as.Date(obs$Datum)
+
+for(i in 1:length(obs$individual)){
+  for(j in 1:length(zeitfenster$individual))
+    
+    if(obs$individual[i] == zeitfenster$individual[j] & obs$date[i]==zeitfenster$date[j]){
+      obs$session[i]<- zeitfenster$Session[j]
+    } else{}
+}
+
+obs_senderonly<- obs %>% 
+  filter(Sender=="ja"|Sender=="sender"|Sender=="Sender") # only sightings with bird+transmitter!
+```
+
+#### 2.2.2. create Shapefile
+
+```{r}
+obs_shp<- st_as_sf(obs_senderonly, coords = c("X", "Y"), crs =4326)
+obs_shp<- st_transform(obs_shp, crs = 32632)
+
+st_write(obs_shp, paste0(path, "data_observer/shapefiles/", "observer_final.shp"))
+st_write(obs_shp, paste0(path, "data_observer/", "observer_final.csv"))
+```
+
+
+
+
+## 2.3. Create & Plot Grid for Observations
+
+* Load Observer-Shapefiles
+```{r}
+obs_shp<-st_read(paste0(path, "data_observer/shapefiles/", "observer_final.shp"))
+WKA_radius<- st_read(paste0(path,"data_QGIS/WKA_radius/WKA_radius_32N.shp"))
+```
+
+* create suitable utm-shapefile for Observations: 
+```{r}
+#obs_shp<- st_transform(obs_shp, crs="+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs")
+obs_shp$long_utm32<- st_coordinates(obs_shp)[,1]
+obs_shp$lat_utm32<- st_coordinates(obs_shp)[,2]
+
+# in case of projection issues:
+#obs_utm<- as.data.frame(cbind(obs_shp$individual, obs_shp$long_utm32, obs_shp$lat_utm32))
+#colnames(obs_utm)<- c("individual", "X", "Y")
+#obs_utm_shp <- st_as_sf(obs_utm, coords = c("X", "Y"), crs =32632)
+```
+
+* create grid:
+```{r}
+grid<- WKA_radius %>% 
+  st_make_grid(., cellsize = 250, square = T) %>% 
+  st_intersection(., WKA_radius)
+
+crs(WKA_radius)
+crs(grid)
+crs(obs_shp)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = WKA_radius, fill="transparent")+
+  geom_sf(data = grid, fill="transparent")+
+  geom_point(data = obs_shp, aes(x = long_utm32, y = lat_utm32), col="orange")
+```
+
+```{r}
+mapview(obs_shp) + mapview(WKA_radius)+ mapview(grid)
+```
+
+
+### 2.4. Heatmap for Observer
+```{r}
+pointcount<- st_intersects(grid, obs_shp)
+lengths(pointcount)
+
+grid_count <- grid %>% 
+  st_intersects(., obs_shp) %>% 
+  lengths(.) %>% 
+  st_sf(n = ., geometry = st_cast(grid, "MULTIPOLYGON"))
+
+mapview(WKA_radius) + mapview(obs_shp) + mapview(grid_count, zcol = "n")
+#mapview(grid_count, zcol = "n", col.regions = pal(20), at = seq(0, 500, 5)) # change colour setting
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = WKA_radius, fill="transparent")+
+  geom_sf(data = grid_count, aes(fill=n))+
+  scale_fill_gradient(low = "white", high = "red")
+```
+
+### 2.5. subset for one WKA:
+
+```{r}
+grid_9_obs_count <- grid_9 %>% 
+  st_intersects(., obs_shp) %>% 
+  lengths(.) 
+
+grid_9_obs_prop<- (grid_9_obs_count / sum(grid_9_obs_count)) * 100
+  
+grid_9_obs <- st_sf(n = grid_9_obs_prop, geometry = st_cast(grid_9, "MULTIPOLYGON"))
+
+grid_9_obs$prop_round<- round(grid_9_obs_prop, digits =2)
+
+mapview(wka_9) + mapview(grid_9_obs) #+ mapview(redkite_shp)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = grid_9_obs, aes(fill=log(n)))+
+  geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
+  scale_fill_gradient2(low = "white", mid = "yellow", high = "red")+ # find better gradient; Log-Scale!!!!
+    geom_sf_text(data = grid_9_obs,aes(label = prop_round),size=1.5)+
+   ggtitle("WKA 9 - Observer Friedolin")
+ggsave("friedolin_observer.png")
+```
+
+
+# 3.  Difference of GPS vs.Observer:
+
+```{r}
+grid_9_dif_prop<- grid_9_obs_prop - grid_9_gps_prop
+
+grid_9_dif<- st_sf(n = grid_9_dif_prop, geometry = st_cast(grid_9, "MULTIPOLYGON"))
+grid_9_dif$nlog<- log(grid_9_obs_prop+0.0001) - log(grid_9_gps_prop+0.0001)
+grid_9_dif$n_round<- round(grid_9_dif_prop, digits = 2)
+
+ggplot() +
+  geom_sf(data = grid_9_dif, aes(fill=nlog))+
+  geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
+  scale_fill_gradient2(low = "blue",mid="white",  high = "red")+ 
+  geom_sf_text(data = grid_9_dif,aes(label = n_round),size=1.5)+
+  ggtitle("WKA 9 - GPS vs. OBS")+
+  theme(legend.position = "none")
+
+ggsave("Friedolin_difference.png")
+
+# PROZENT der Daten: Werte jedes Feldes durch Gesamtes Teilen!
+```
+
+
+
+
+
+#########################################################################
+
+# calculate AKDE for each WKA-radius
