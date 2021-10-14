@@ -12,7 +12,7 @@ output: html_document
 library(data.table)
 library(dplyr)
 library(stringr)
-library(sf)
+library(sf) 
 library(raster)
 library(ggplot2)
 library(mapview)
@@ -324,7 +324,7 @@ ggplot() +
   geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
   scale_fill_gradient2(low = "white", mid = "yellow", high = "red")+ # find better gradient; Log-Scale!!!!
     geom_sf_text(data = grid_9_obs,aes(label = prop_round),size=1.5)+
-   ggtitle("WKA 9 - Observer Friedolin")
+   ggtitle("WKA 9 - Observer Rapida")
 ggsave("friedolin_observer.png")
 ```
 

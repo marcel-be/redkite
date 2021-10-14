@@ -10,7 +10,7 @@ library(move)
 library(ctmm)
 library(scales)
 
-path<- "J:/redkite/marcel/"
+path<- "E:/redkite/"
 
 ##################################################################################################################################
 #### Observer Data
@@ -21,7 +21,7 @@ path<- "J:/redkite/marcel/"
 
 #### 2. Data preperation - observer-table
 
-obs<- read.csv(paste0(path, "data_observer/observer_data_vertices_clipped.csv"))
+obs<- read.csv(paste0(path, "data/data_observer/observer_data_vertices_clipped.csv"))
 
 # assign individual names (in observer data only abbreviations)
 obs$individual<- NA
@@ -76,8 +76,8 @@ st_write(obs_shp, paste0(path, "data_observer/", "observer_final.csv"))
 
 #### 4. Load Observer-Shapefiles
 
-obs_shp<-st_read(paste0(path, "data_observer/shapefiles/", "observer_final.shp"))
-WKA_radius<- st_read(paste0(path,"data_QGIS/WKA_radius/WKA_radius_32N.shp"))
+obs_shp<-st_read(paste0(path, "data/data_observer/shapefiles/", "observer_final.shp"))
+WKA_radius<- st_read(paste0(path,"data/data_QGIS/WKA_radius/WKA_radius_32N.shp"))
 
 ## 4.2 create suitable utm-shapefile for Observations: 
 
@@ -133,19 +133,29 @@ ggplot() +
 
 # subset for one WKA:
 
+wka_9<- WKA_radius %>% 
+  filter(WKA_radius$number==9)
+
+grid_9<- wka_9 %>% 
+  st_make_grid(., cellsize = 250, square = T) %>% 
+  st_intersection(., wka_9)
 
 grid_9_obs_count <- grid_9 %>% 
   st_intersects(., obs_shp) %>% 
   lengths(.) 
-  
-grid_9_obs <- st_sf(n = grid_9_obs_count, geometry = st_cast(grid_9, "MULTIPOLYGON"))
+
+grid_9_obs_prop<- (grid_9_obs_count / sum(grid_9_obs_count)) * 100
+
+grid_9_obs <- st_sf(n = grid_9_obs_prop, geometry = st_cast(grid_9, "MULTIPOLYGON"))
+
+grid_9_obs$prop_round<- round(grid_9_obs_prop, digits =2)
 
 mapview(wka_9) + mapview(grid_9_obs) #+ mapview(redkite_shp)
-
 ggplot() +
   geom_sf(data = grid_9_obs, aes(fill=log(n)))+
   geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
   scale_fill_gradient2(low = "white", mid = "yellow", high = "red")+ # find better gradient; Log-Scale!!!!
+  geom_sf_text(data = grid_9_obs,aes(label = prop_round),size=2)+
   ggtitle("WKA 9 - Observer Rapida")
 
 
@@ -262,11 +272,6 @@ for(i in 1:length(obs_ctmm)){
   akde.sizes$timespan1[i]<-summary(akde.data.kites[[i]], units=F)$CI[2]/1000000 #stores akde size in list (sqkm)
   spdf.list.kites[[i]]<-SpatialPolygonsDataFrame.UD(akde.data.kites[[i]]) #stores akde spdf in list to plot or export it to gis
 }
-
-
-
-
-#test 
 
 
 
