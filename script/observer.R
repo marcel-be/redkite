@@ -18,6 +18,7 @@ path<- "E:/redkite/"
 #### 1. Steps in GIS
 # load observer data (shp in QGIS) - Create Vertices from "Schlangenlinien" 
 # clip with WKA-radius
+# save as csv --> go on here
 
 #### 2. Data preperation - observer-table
 
@@ -97,41 +98,43 @@ grid<- WKA_radius %>%
   st_make_grid(., cellsize = 250, square = T) %>% 
   st_intersection(., WKA_radius)
 
-
 crs(WKA_radius)
 crs(grid)
-crs(obs_shp)
+crs(obs_shp) #top
 
-## 4.3 Plots
+## 4.3 Plots of raw data
 
 ggplot() +
   geom_sf(data = WKA_radius, fill="transparent")+
   geom_sf(data = grid, fill="transparent")+
   geom_point(data = obs_shp, aes(x = long_utm32, y = lat_utm32), col="orange")
 
-mapview(obs_shp) + mapview(WKA_radius)+ mapview(grid)
+## 5. Heatmap for proportion of observations
 
-
-#### 5. Heatmap
-
-pointcount<- st_intersects(grid, obs_shp)
-lengths(pointcount)
-
-grid_count <- grid %>% 
+pointcount<- grid %>% 
   st_intersects(., obs_shp) %>% 
-  lengths(.) %>% 
-  st_sf(n = ., geometry = st_cast(grid, "MULTIPOLYGON"))
+  lengths()
 
-mapview(WKA_radius) + mapview(obs_shp) + mapview(grid_count, zcol = "n")
-#mapview(grid_count, zcol = "n", col.regions = pal(20), at = seq(0, 500, 5)) # change colour setting
-
-ggplot() +
-  geom_sf(data = WKA_radius, fill="transparent")+
-  geom_sf(data = grid_count, aes(fill=n))+
-  scale_fill_gradient(low = "white", high = "red")
+pointcount_prop<- (pointcount / sum(pointcount)) * 100
+grid_count <- st_sf(n = pointcount_prop, geometry = st_cast(grid, "MULTIPOLYGON"))
 
 
-# subset for one WKA:
+#mapview(WKA_radius) + mapview(obs_shp) + mapview(grid_count, zcol = "n")
+
+p<- ggplot() +
+  geom_sf(data = WKA_radius, fill="transparent", size =2, col="grey")+
+  geom_sf(data = grid_count, aes(fill=log(n)), size=0.0005, col="gray70")+
+  scale_fill_gradient2(low = "khaki1", mid = "orange", high = "red", na.value = "white")+
+  theme(
+    plot.title=element_text(size=20),
+    legend.position = "none")
+
+png(paste0(path, "output/proportions_observer/","observer_data_allwka.png"),
+    width=3000, height=2300)
+print(p)
+dev.off()
+
+## 6. Subset for one WKA:
 
 wka_9<- WKA_radius %>% 
   filter(WKA_radius$number==9)
@@ -145,18 +148,63 @@ grid_9_obs_count <- grid_9 %>%
   lengths(.) 
 
 grid_9_obs_prop<- (grid_9_obs_count / sum(grid_9_obs_count)) * 100
-
 grid_9_obs <- st_sf(n = grid_9_obs_prop, geometry = st_cast(grid_9, "MULTIPOLYGON"))
 
-grid_9_obs$prop_round<- round(grid_9_obs_prop, digits =2)
+grid_9_obs<- grid_9_obs %>% 
+  mutate(prop_round=round(grid_9_obs_prop, digits =2))
 
 mapview(wka_9) + mapview(grid_9_obs) #+ mapview(redkite_shp)
+
 ggplot() +
   geom_sf(data = grid_9_obs, aes(fill=log(n)))+
   geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
-  scale_fill_gradient2(low = "white", mid = "yellow", high = "red")+ # find better gradient; Log-Scale!!!!
-  geom_sf_text(data = grid_9_obs,aes(label = prop_round),size=2)+
+  scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
+  geom_sf_text(data = subset(grid_9_obs, prop_round!=0),aes(label = prop_round),size=2)+
+  theme(legend.position = "none")+
   ggtitle("WKA 9 - Observer Rapida")
+
+
+## 8. Subsets for all WKAs
+
+plot_list = list()
+for(i in 1:nrow(WKA_radius)){
+  wka<- WKA_radius %>% 
+    filter(WKA_radius$number==WKA_radius$number[i])
+  
+  grid<- wka %>% 
+    st_make_grid(., cellsize = 250, square = T) %>% 
+    st_intersection(., wka)
+  
+  grid_observer_count <- grid %>% 
+    st_intersects(., obs_shp) %>% 
+    lengths(.) 
+  
+  grid_observer_prop<- (grid_observer_count / sum(grid_observer_count)) * 100
+  grid_observer <-  st_sf(n = grid_observer_prop, geometry = st_cast(grid, "MULTIPOLYGON"))
+  
+  grid_observer<- grid_observer %>% 
+    mutate(prop_round=round(grid_observer_prop, digits = 2))
+  
+  p<- ggplot() +
+    geom_sf(data = grid_observer, aes(fill=log(n)))+
+    geom_sf(data = wka, fill="transparent", size =2, col="grey")+
+    scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
+    geom_sf_text(data = subset(grid_observer, prop_round!=0),aes(label = prop_round),size=3.5)+
+    ggtitle(paste0("WKA ", WKA_radius$number[i], " - OBSERVER ",WKA_radius$name[i]))+
+    theme(
+      plot.title=element_text(size=20),
+      legend.position = "none")
+  
+  plot_list[[i]] = p
+}
+
+for(i in 1:nrow(WKA_radius)){
+  png(paste0(path, "output/proportions_observer/","WKA_", WKA_radius$number[i], "_OBSERVER_",WKA_radius$name[i],".png"),
+      width=1200, height=1000)
+  print(plot_list[[i]])
+  dev.off()
+}
+
 
 
 
