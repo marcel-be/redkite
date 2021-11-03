@@ -158,10 +158,10 @@ mapview(wka_9) + mapview(grid_9_obs) #+ mapview(redkite_shp)
 ggplot() +
   geom_sf(data = grid_9_obs, aes(fill=log(n)))+
   geom_sf(data = wka_9, fill="transparent", size =2, col="grey")+
-  scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
+  scale_fill_gradient2(low = "#FFF9C4", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
   geom_sf_text(data = subset(grid_9_obs, prop_round!=0),aes(label = prop_round),size=2)+
   theme(legend.position = "none")+
-  ggtitle("WKA 9 - Observer Rapida")
+  ggtitle(paste0("WKA 9 - Observer Rapida \n", sum(grid_9_obs_count), " datapoints"))
 
 
 ## 8. Subsets for all WKAs
@@ -190,7 +190,7 @@ for(i in 1:nrow(WKA_radius)){
     geom_sf(data = wka, fill="transparent", size =2, col="grey")+
     scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
     geom_sf_text(data = subset(grid_observer, prop_round!=0),aes(label = prop_round),size=3.5)+
-    ggtitle(paste0("WKA ", WKA_radius$number[i], " - OBSERVER ",WKA_radius$name[i]))+
+    ggtitle(paste0("WKA ", WKA_radius$number[i], " - OBSERVER ",WKA_radius$name[i],"\n", sum(grid_observer_count), " datapoints"))+
     theme(
       plot.title=element_text(size=20),
       legend.position = "none")
@@ -198,6 +198,7 @@ for(i in 1:nrow(WKA_radius)){
   plot_list[[i]] = p
 }
 
+# seperate .png-files:
 for(i in 1:nrow(WKA_radius)){
   png(paste0(path, "output/proportions_observer/","WKA_", WKA_radius$number[i], "_OBSERVER_",WKA_radius$name[i],".png"),
       width=1200, height=1000)
@@ -205,7 +206,13 @@ for(i in 1:nrow(WKA_radius)){
   dev.off()
 }
 
+# all in one file: 
 
+plot_list_obs<- plot_list
+
+ggsave(filename = "output/proportions_observer/observer.pdf",
+       plot = gridExtra::marrangeGrob(test, nrow=1, ncol=1), 
+       width = 15, height = 9)
 
 
 ##################################################################################################################

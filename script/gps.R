@@ -128,7 +128,7 @@ for(i in 1:nrow(WKA_radius)){
         geom_sf(data = wka, fill="transparent", size =2, col="grey")+
         scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
         geom_sf_text(data = subset(grid_gps, prop_round!=0),aes(label = prop_round),size=3.5)+
-        ggtitle(paste0("WKA ", WKA_radius$number[i], " - GPS ",WKA_radius$name[i]))+
+        ggtitle(paste0("WKA ", WKA_radius$number[i], " - GPS ",WKA_radius$name[i],"\n", sum(grid_observer_count), " datapoints"))+
      theme(
        plot.title=element_text(size=20),
        legend.position = "none")
@@ -144,6 +144,12 @@ for(i in 1:nrow(WKA_radius)){
 }
 
 
+plot_list_gps<- plot_list
+ plot_list[1]
+
+ test<- list()
+ test[[1]]<- plot_list_gps[[1]]
+ test[[2]]<- plot_list_obs[[1]]
 
 #########################################################################
 
