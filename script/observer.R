@@ -10,7 +10,7 @@ library(move)
 library(ctmm)
 library(scales)
 
-path<- "E:/redkite/"
+path<- "G:/Hessenbox/redkite/"
 
 ##################################################################################################################################
 #### Observer Data
@@ -189,7 +189,7 @@ for(i in 1:nrow(WKA_radius)){
     geom_sf(data = grid_observer, aes(fill=log(n)))+
     geom_sf(data = wka, fill="transparent", size =2, col="grey")+
     scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
-    geom_sf_text(data = subset(grid_observer, prop_round!=0),aes(label = prop_round),size=3.5)+
+    geom_sf_text(data = subset(grid_observer, prop_round!=0),aes(label = prop_round),size=2.5)+
     ggtitle(paste0("WKA ", WKA_radius$number[i], " - OBSERVER ",WKA_radius$name[i],"\n", sum(grid_observer_count), " datapoints"))+
     theme(
       plot.title=element_text(size=20),
@@ -197,6 +197,8 @@ for(i in 1:nrow(WKA_radius)){
   
   plot_list[[i]] = p
 }
+
+saveRDS(plot_list, file="plot_list_obs.rds")
 
 # seperate .png-files:
 for(i in 1:nrow(WKA_radius)){
@@ -206,13 +208,7 @@ for(i in 1:nrow(WKA_radius)){
   dev.off()
 }
 
-# all in one file: 
 
-plot_list_obs<- plot_list
-
-ggsave(filename = "output/proportions_observer/observer.pdf",
-       plot = gridExtra::marrangeGrob(test, nrow=1, ncol=1), 
-       width = 15, height = 9)
 
 
 ##################################################################################################################

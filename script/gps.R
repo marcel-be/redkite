@@ -8,7 +8,7 @@ library(mapview)
 library(move)
 library(ctmm)
 library(scales)
-path<- "E:/redkite/"
+path<- "G:/Hessenbox/redkite/"
 
 ##################################################################################################################################
 #### Red Kite Movebank Data
@@ -89,7 +89,7 @@ grid_9_gps_prop<- (grid_9_gps_count / sum(grid_9_gps_count)) * 100
 grid_9_gps <-  st_sf(n = grid_9_gps_prop, geometry = st_cast(grid_9, "MULTIPOLYGON"))
 
 grid_9_gps<- grid_9_gps %>% 
-  mutate(grid_9_gps$prop_round=round(grid_9_gps_prop, digits = 2))
+  mutate(prop_round = round(grid_9_gps_prop, digits=2))
 
 #mapview(wka_9) + mapview(grid_9_gps) #+ mapview(redkite_shp)
 
@@ -127,14 +127,16 @@ for(i in 1:nrow(WKA_radius)){
         geom_sf(data = grid_gps, aes(fill=log(n)))+
         geom_sf(data = wka, fill="transparent", size =2, col="grey")+
         scale_fill_gradient2(low = "white", mid = "yellow", high = "red", na.value = "white")+ # find better gradient; Log-Scale!!!!
-        geom_sf_text(data = subset(grid_gps, prop_round!=0),aes(label = prop_round),size=3.5)+
-        ggtitle(paste0("WKA ", WKA_radius$number[i], " - GPS ",WKA_radius$name[i],"\n", sum(grid_observer_count), " datapoints"))+
+        geom_sf_text(data = subset(grid_gps, prop_round!=0),aes(label = prop_round),size=2.5)+
+        ggtitle(paste0("WKA ", WKA_radius$number[i], " - GPS ",WKA_radius$name[i],"\n", sum(grid_gps_count), " datapoints"))+
      theme(
        plot.title=element_text(size=20),
        legend.position = "none")
   
   plot_list[[i]] = p
 }
+
+saveRDS(plot_list, file="plot_list_gps.rds")
 
 for(i in 1:nrow(WKA_radius)){
   png(paste0(path, "output/proportions_gps/","WKA_", WKA_radius$number[i], "_GPS_",WKA_radius$name[i],".png"),
@@ -144,12 +146,6 @@ for(i in 1:nrow(WKA_radius)){
 }
 
 
-plot_list_gps<- plot_list
- plot_list[1]
-
- test<- list()
- test[[1]]<- plot_list_gps[[1]]
- test[[2]]<- plot_list_obs[[1]]
 
 #########################################################################
 
